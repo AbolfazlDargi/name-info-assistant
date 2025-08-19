@@ -30,7 +30,6 @@ tools = [get_person_info, explain_model]
 
 if __name__ == "__main__":
     print("Welcome to the Name Information Assistant :)")
-    print("Commands: type a question like 'Tell me about Bob Smith', 'exit' to quit.")
     
     while True:
         user_input = input("\nYou: ").strip()
