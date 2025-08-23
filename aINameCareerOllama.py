@@ -8,7 +8,7 @@ def read_csv_data(file_path):
     data = {}
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            next(f, None)  
+            next(f, None)
             for row in csv.reader(f):
                 if len(row) >= 2:
                     data[row[0].strip()] = row[1].strip()
@@ -28,6 +28,30 @@ def get_person_info(name: str) -> str:
 def list_all_names() -> str:
     data = read_csv_data(CSV_FILE)
     return "\n".join(data.keys())
+
+def get_person_gender(name: str) -> str:
+    """
+    Guess the gender of a person based on the name using simple rules or Ollama.
+    """
+    first_name = name.strip().split()[0]
+    
+    female_names = {"Alice", "Mary", "Linda", "Sophia", "Emma"}
+    male_names = {"Bob", "John", "Michael", "David", "James"}
+
+    if first_name in female_names:
+        gender = "Female"
+    elif first_name in male_names:
+        gender = "Male"
+    else:
+        client = ollama.Client(host="http://localhost:11434")
+        prompt = f"Guess the gender (Male/Female) of a person with the first name '{first_name}'. Just answer Male or Female."
+        response = client.chat(
+            model="llama3.2",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        gender = response['message']['content'].strip()
+    
+    return f"{name} --> {gender}"
 
 
 tools = [
@@ -51,6 +75,20 @@ tools = [
             "name": "list_all_names",
             "description": "List all employee names in the database",
             "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_person_gender",
+            "description": "Get gender information about a person by their name",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Full name of the person"}
+                },
+                "required": ["name"]
+            }
         }
     }
 ]
@@ -82,6 +120,9 @@ def process_with_tools(user_input):
             function_result = get_person_info(name)
         elif function_name == "list_all_names":
             function_result = list_all_names()
+        elif function_name == "get_person_gender":
+            name = function_args.get("name", "")
+            function_result = get_person_gender(name)
         else:
             function_result = f"Unknown tool: {function_name}"
 
@@ -91,7 +132,7 @@ def process_with_tools(user_input):
 
 if __name__ == "__main__":
     print("Welcome to the Name Information Assistant :)")
-    print("Type 'Tell me about name List' or 'List all employees' or 'exit' to quit.\n")
+    print("Type 'Tell me about Bob Smith', 'Tell me the gender of Bob Smith', 'List all employees' or 'exit' to quit.\n")
 
     while True:
         user_input = input("You: ").strip()
