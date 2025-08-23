@@ -1,26 +1,34 @@
 import ollama
 import csv
 import difflib
-import json
-import re
+
+CSV_FILE = "colleagues.csv"
 
 def read_csv_data(file_path):
     data = {}
-    with open(file_path, 'r', encoding='utf-8') as f:
-        next(f)
-        for row in csv.reader(f):
-            if len(row) >= 2:
-                data[row[0].strip()] = row[1].strip()
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            next(f, None)  
+            for row in csv.reader(f):
+                if len(row) >= 2:
+                    data[row[0].strip()] = row[1].strip()
+    except FileNotFoundError:
+        print(f"Error: CSV file '{file_path}' not found.")
     return data
 
 def get_person_info(name: str) -> str:
-    data = read_csv_data("colleagues.csv")
+    data = read_csv_data(CSV_FILE)
     closest = difflib.get_close_matches(name, list(data.keys()), n=1, cutoff=0.6)
     if not closest:
-        return json.dumps({"error": f"No information found for {name}."})
+        return f"No information found for {name}."
     found_name = closest[0]
-    career = data[found_name] if data[found_name] else "Career information not available"
-    return json.dumps({"name": found_name, "career": career})
+    career = data.get(found_name, "Career information not available")
+    return f"{found_name} --> {career}"
+
+def list_all_names() -> str:
+    data = read_csv_data(CSV_FILE)
+    return "\n".join(data.keys())
+
 
 tools = [
     {
@@ -31,13 +39,18 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "The full name of the person (e.g. John Doe)"
-                    }
+                    "name": {"type": "string", "description": "Full name of the person"}
                 },
                 "required": ["name"]
             }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_all_names",
+            "description": "List all employee names in the database",
+            "parameters": {"type": "object", "properties": {}}
         }
     }
 ]
@@ -50,50 +63,35 @@ def process_with_tools(user_input):
         messages=[{"role": "user", "content": user_input}],
         tools=tools
     )
-    
+
     message = response['message']
-    
-    if 'tool_calls' in message and message['tool_calls']:
-        for tool_call in message['tool_calls']:
-            function_name = tool_call['function']['name']
-            function_args = json.loads(tool_call['function']['arguments'])
-            
-            if function_name == "get_person_info":
+    tool_calls = message.get('tool_calls', [])
+    if not tool_calls:
+        return message.get('content', "No response.")
 
-                name = function_args.get('name', '')
-                function_result = get_person_info(name)
-                
+    final_outputs = []
+    for tool_call in tool_calls:
+        function_name = tool_call['function']['name']
+        function_args = tool_call['function'].get('arguments', {})
+        if isinstance(function_args, str):
+            import json
+            function_args = json.loads(function_args)
 
-                follow_up_response = client.chat(
-                    model="llama3.2",
-                    messages=[
-                        {"role": "user", "content": user_input},
-                        {"role": "assistant", "content": None, "tool_calls": [tool_call]},
-                        {"role": "tool", "content": function_result, "tool_call_id": tool_call['id'], "name": function_name}
-                    ]
-                )
-                
-                return follow_up_response['message']['content']
-    
-    return message['content']
+        if function_name == "get_person_info":
+            name = function_args.get("name", "")
+            function_result = get_person_info(name)
+        elif function_name == "list_all_names":
+            function_result = list_all_names()
+        else:
+            function_result = f"Unknown tool: {function_name}"
 
+        final_outputs.append(function_result)
+
+    return "\n".join(final_outputs)
 
 if __name__ == "__main__":
     print("Welcome to the Name Information Assistant :)")
-    print("Type something like 'Tell me about Bob Smith' or 'exit' to quit.\n")
-    
-    try:
-        test_response = client.chat(
-            model="llama3.2",
-            messages=[{"role": "user", "content": "test"}],
-            tools=tools
-        )
-        print("✓ Function calling supported!")
-    except Exception as e:
-        print(f"✗ Function calling may not be supported: {e}")
-        print("Please make sure you're using a model that supports function calling.")
-        print("Try: llama3.2, qwen2.5, or other newer models.")
-        exit()
+    print("Type 'Tell me about Bob Smith' or 'List all employees' or 'exit' to quit.\n")
 
     while True:
         user_input = input("You: ").strip()
@@ -106,21 +104,12 @@ if __name__ == "__main__":
             print("Assistant:", response)
         except Exception as e:
             print(f"Error: {e}")
-            data = read_csv_data("colleagues.csv")
+            data = read_csv_data(CSV_FILE)
             all_names = list(data.keys())
-            name = None
-            
-
-            for potential_name in all_names:
-                if all(part.lower() in user_input.lower() for part in potential_name.split()):
-                    name = potential_name
-                    break
-            
-            if name:
-                result = json.loads(get_person_info(name))
-                if "error" in result:
-                    print("Assistant:", result["error"])
-                else:
-                    print("Assistant:", f"{result['name']} --> {result['career']}")
+            closest = difflib.get_close_matches(user_input, all_names, n=1, cutoff=0.6)
+            if closest:
+                print("Assistant:", get_person_info(closest[0]))
+            elif "all" in user_input.lower() and "name" in user_input.lower():
+                print("Assistant:\n" + list_all_names())
             else:
-                print("Assistant: I can't Find This Name Please Try Some one Name ")
+                print("Assistant: I can't find this name. Please try again.")
