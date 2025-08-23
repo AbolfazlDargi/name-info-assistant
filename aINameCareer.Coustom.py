@@ -9,7 +9,7 @@ def read_csv_data(file_path):
     data = {}
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            next(f, None)  # skip header
+            next(f, None)  
             for row in csv.reader(f):
                 if len(row) >= 2:
                     data[row[0].strip()] = row[1].strip()
@@ -33,7 +33,6 @@ def list_all_names() -> str:
 def get_person_gender(name: str) -> str:
     first_name = name.strip().split()[0]
     
-    # نمونه لیست اسامی اولیه
     female_names = {"Alice", "Mary", "Linda", "Sophia", "Emma"}
     male_names = {"Bob", "John", "Michael", "David", "James"}
 
@@ -42,7 +41,6 @@ def get_person_gender(name: str) -> str:
     elif first_name in male_names:
         gender = "Male"
     else:
-        # اگر اسم در لیست نبود، از مدل کمک می‌گیریم
         client = ollama.Client(host="http://localhost:11434")
         prompt = f"Guess the gender (Male/Female) of a person with the first name '{first_name}'. Just answer Male or Female."
         response = client.chat(
@@ -57,7 +55,6 @@ def explain_model() -> str:
     return ("I am an AI assistant that provides information about people's names, careers, "
             "and can also guess gender based on the first name using AI or predefined rules.")
 
-# تعریف ابزارها برای Ollama با متادیتای کامل
 tools = [
     {
         "type": "function",
