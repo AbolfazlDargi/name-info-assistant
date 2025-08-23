@@ -91,7 +91,7 @@ def process_with_tools(user_input):
 
 if __name__ == "__main__":
     print("Welcome to the Name Information Assistant :)")
-    print("Type 'Tell me about Bob Smith' or 'List all employees' or 'exit' to quit.\n")
+    print("Type 'Tell me about name List' or 'List all employees' or 'exit' to quit.\n")
 
     while True:
         user_input = input("You: ").strip()
